@@ -1,4 +1,5 @@
 use core::str;
+use regex::Regex;
 use std::error::Error;
 use std::{env, fs};
 
@@ -7,6 +8,8 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 
     let results = if config.ignore_case {
         search_case_insensitive(&config.query, &contents)
+    } else if config.re {
+        search_regex(&config.query, &contents)
     } else {
         search(&config.query, &contents)
     };
@@ -16,6 +19,12 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     }
     Ok(())
 }
+
+pub fn search_regex<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    let regex = Regex::new(query).unwrap();
+    contents.lines().filter(|x| regex.is_match(x)).collect()
+}
+
 pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
     contents.lines().filter(|x| x.contains(&query)).collect()
 }
@@ -32,6 +41,7 @@ pub struct Config {
     pub query: String,
     pub file_path: String,
     pub ignore_case: bool,
+    pub re: bool,
 }
 
 impl Config {
@@ -49,10 +59,12 @@ impl Config {
         };
 
         let ignore_case = env::var("IGNORE_CASE").is_ok();
+        let re = env::var("REGEX").is_ok();
         return Ok(Config {
             query,
             file_path,
             ignore_case,
+            re,
         });
     }
 }
@@ -85,5 +97,16 @@ Trust me.";
             vec!["Rust:", "Trust me."],
             search_case_insensitive(query, contents)
         );
+    }
+
+    #[test]
+    fn regex_search() {
+        let query = r"\b\d{3}\b";
+        let contents = "\
+1234
+567
+89
+0";
+        assert_eq!(vec!["567"], search_regex(&query, &contents));
     }
 }
